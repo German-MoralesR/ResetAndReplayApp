@@ -1,14 +1,21 @@
 package com.example.resetandreplay.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,6 +32,7 @@ import com.example.resetandreplay.ui.screen.*
 import com.example.resetandreplay.ui.viewmodel.AuthViewModel
 import com.example.resetandreplay.ui.viewmodel.ProductViewModel
 import com.example.resetandreplay.ui.viewmodel.PurchaseViewModel
+import com.example.resetandreplay.ui.viewmodel.ReviewViewModel
 import kotlinx.coroutines.launch
 
 @Composable
@@ -32,7 +40,8 @@ fun AppNavGraph(
     navController: NavHostController,
     authViewModel: AuthViewModel,
     productViewModel: ProductViewModel,
-    purchaseViewModel: PurchaseViewModel
+    purchaseViewModel: PurchaseViewModel,
+    reviewViewModel: ReviewViewModel
 ) {
     val context = LocalContext.current
     val userPrefs = remember { UserPreferences(context) }
@@ -55,7 +64,8 @@ fun AppNavGraph(
     val goToForgotPassword: () -> Unit = { navController.navigate(Route.ForgotPassword.path) }
     val goToResetPassword: (String) -> Unit = { navController.navigate(Route.ResetPassword.createRoute(it)) }
     val goToPurchaseHistory: () -> Unit = { navController.navigate(Route.PurchaseHistory.path) } // 1. Acción para el historial
-
+    val goToAddReview: (Long) -> Unit = { productId -> navController.navigate(Route.ReviewForm.createRoute(productId))
+    }
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -90,6 +100,16 @@ fun AppNavGraph(
                 composable(Route.Login.path) { LoginScreenVm(vm = authViewModel, onLoginOkNavigateHome = goHome, onGoRegister = goRegister, onGoToForgotPassword = goToForgotPassword) }
                 composable(Route.Register.path) { RegisterScreenVm(vm = authViewModel, onRegisteredNavigateLogin = goLogin, onGoLogin = goLogin) }
                 composable(Route.ProductList.path) { ProductListScreen(productViewModel = productViewModel, isAdmin = isAdmin, onProductClick = { navController.navigate(Route.ProductDetail.createRoute(it)) }, onAddProduct = goToAddProduct, onEditProduct = goToEditProduct) }
+                composable(Route.ProductDetail.path, arguments = listOf(navArgument("productId") { type = NavType.LongType })) { backStackEntry ->
+                    val productId = backStackEntry.arguments?.getLong("productId") ?: 0L
+                    // Pasamos el nuevo ViewModel y la acción de navegación
+                    ProductDetailScreen(
+                        productId = productId,
+                        productViewModel = productViewModel,
+                        reviewViewModel = reviewViewModel,
+                        onAddReview = goToAddReview
+                    )
+                }
                 
                 // 2. Pasamos todos los parámetros necesarios a CartScreen
                 composable(Route.Cart.path) { 
@@ -102,9 +122,32 @@ fun AppNavGraph(
                     ) 
                 }
 
-                composable(Route.ProductDetail.path, arguments = listOf(navArgument("productId") { type = NavType.LongType })) { backStackEntry ->
-                    val productId = backStackEntry.arguments?.getLong("productId") ?: 0L
-                    ProductDetailScreen(productId = productId, productViewModel = productViewModel)
+                composable(Route.ReviewForm.path, arguments = listOf(navArgument("productId") { type = NavType.LongType })) { backStackEntry ->
+                    val productId = backStackEntry.arguments?.getLong("productId")?.toInt() ?: 0
+
+                    // Obtenemos el ID del usuario actual de forma segura
+                    var userId by remember { mutableStateOf<Int?>(null) }
+                    LaunchedEffect(userEmail) {
+                        userEmail?.let { email ->
+                            val result = authViewModel.getUserDetails(email)
+                            if(result.isSuccess) {
+                                userId = result.getOrNull()?.id?.toInt()
+                            }
+                        }
+                    }
+
+                    // Solo mostramos la pantalla si tenemos un ID de usuario válido
+                    if (userId != null) {
+                        ReviewFormScreen(
+                            productId = productId,
+                            userId = userId!!,
+                            reviewViewModel = reviewViewModel,
+                            onReviewSubmitted = { navController.popBackStack() } // Al terminar, volvemos atrás
+                        )
+                    } else {
+                        // Podrías mostrar un indicador de carga o un mensaje si el usuario no se encuentra
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Cargando datos de usuario...") }
+                    }
                 }
                 // 3. Pasamos la nueva acción a ProfileScreen
                 composable(Route.Profile.path) { ProfileScreen(authViewModel = authViewModel, onLoggedOut = onLoggedOut, onGoToPurchaseHistory = goToPurchaseHistory) }

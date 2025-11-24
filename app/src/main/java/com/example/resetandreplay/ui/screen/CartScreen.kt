@@ -23,12 +23,13 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.resetandreplay.data.local.cart.Cart
 import com.example.resetandreplay.data.local.cart.CartItem
-import com.example.resetandreplay.data.local.purchase.PurchaseEntity
 import com.example.resetandreplay.ui.util.NotificationHelper
 import com.example.resetandreplay.ui.util.formatPrice
 import com.example.resetandreplay.ui.viewmodel.AuthViewModel
 import com.example.resetandreplay.ui.viewmodel.PurchaseViewModel
 import kotlinx.coroutines.launch
+import com.example.resetandreplay.data.remote.dto.CompraRequest
+import com.example.resetandreplay.data.remote.dto.DetalleRequest
 
 @Composable
 fun CartScreen(
@@ -42,6 +43,7 @@ fun CartScreen(
     val context = LocalContext.current
     val notificationHelper = remember { NotificationHelper(context) }
     val scope = rememberCoroutineScope()
+    val purchaseUiState by purchaseViewModel.uiState.collectAsState()
 
     val requestPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -81,43 +83,70 @@ fun CartScreen(
                             return@Button
                         }
 
+                        // Inicia el proceso de compra
                         scope.launch {
                             userEmail?.let { email ->
                                 val userResult = authViewModel.getUserDetails(email)
                                 if (userResult.isSuccess) {
                                     val user = userResult.getOrNull()!!
-                                    val itemsDescription = cartItems.joinToString(separator = ", ") { "${it.quantity} x ${it.product.name}" }
-                                    
-                                    val purchase = PurchaseEntity(
-                                        userId = user.id,
-                                        itemsDescription = itemsDescription,
-                                        totalPrice = totalPrice,
-                                        date = System.currentTimeMillis()
-                                    )
-                                    purchaseViewModel.savePurchase(purchase)
 
-                                    Cart.clearCart()
-                                    Toast.makeText(context, "¡Gracias por tu compra!", Toast.LENGTH_SHORT).show()
-
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                        when {
-                                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED -> {
-                                                notificationHelper.sendPurchaseConfirmationNotification()
-                                            }
-                                            else -> {
-                                                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                            }
-                                        }
-                                    } else {
-                                        notificationHelper.sendPurchaseConfirmationNotification()
+                                    // 1. Construir el objeto DetalleRequest a partir del carrito
+                                    val detallesRequest = cartItems.map { cartItem ->
+                                        DetalleRequest(
+                                            id_producto = cartItem.product.id.toInt(),
+                                            cantidad = cartItem.quantity,
+                                            precio = cartItem.product.price
+                                        )
                                     }
+
+                                    // 2. Construir el objeto CompraRequest
+                                    val compraRequest = CompraRequest(
+                                        id_usuario = user.id.toInt(),
+                                        detalles = detallesRequest
+                                    )
+
+                                    // 3. Llamar al ViewModel para ejecutar la compra
+                                    purchaseViewModel.createPurchase(compraRequest)
                                 }
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !purchaseUiState.isLoading // Deshabilitamos el botón mientras se procesa
                 ) {
-                    Text("Finalizar Compra")
+                    if (purchaseUiState.isLoading) {
+                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Procesando compra...")
+                    } else {
+                        Text("Finalizar Compra")
+                    }
+                }
+
+                // Añade un LaunchedEffect para reaccionar al resultado de la compra
+                LaunchedEffect(purchaseUiState.purchaseSuccess, purchaseUiState.error) {
+                    if (purchaseUiState.purchaseSuccess) {
+                        Cart.clearCart()
+                        Toast.makeText(context, "¡Gracias por tu compra!", Toast.LENGTH_LONG).show()
+
+                        // Lógica de notificaciones...
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            when (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)) {
+                                PackageManager.PERMISSION_GRANTED -> notificationHelper.sendPurchaseConfirmationNotification()
+                                else -> requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        } else {
+                            notificationHelper.sendPurchaseConfirmationNotification()
+                        }
+
+                        purchaseViewModel.clearPurchaseResult() // Limpiamos el estado
+                    }
+
+                    if (purchaseUiState.error != null) {
+                        // Mostramos el error de stock insuficiente (o cualquier otro)
+                        Toast.makeText(context, purchaseUiState.error, Toast.LENGTH_LONG).show()
+                        purchaseViewModel.clearPurchaseResult() // Limpiamos el estado
+                    }
                 }
             }
         }

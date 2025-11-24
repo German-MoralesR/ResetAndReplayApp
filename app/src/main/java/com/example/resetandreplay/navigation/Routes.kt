@@ -23,4 +23,8 @@ sealed class Route(val path: String) {
     data object ProductDetail : Route("products/{productId}") {
         fun createRoute(productId: Long) = "products/$productId"
     }
+
+    data object ReviewForm : Route("review-form/{productId}") { // <-- NUEVA RUTA
+        fun createRoute(productId: Long) = "review-form/$productId"
+    }
 }

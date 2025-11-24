@@ -1,18 +1,27 @@
 package com.example.resetandreplay.ui.viewmodel
 
+import androidx.compose.animation.core.copy
+import androidx.datastore.core.IOException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.resetandreplay.R
 import com.example.resetandreplay.data.local.product.ProductEntity
+import com.example.resetandreplay.data.remote.dto.CategoriaDto
+import com.example.resetandreplay.data.remote.dto.EstadoDto
+import com.example.resetandreplay.data.remote.dto.PlataformaDto
 import com.example.resetandreplay.data.repository.ProductRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class ProductUiState(
     val products: List<ProductEntity> = emptyList(),
+    val categories: List<CategoriaDto> = emptyList(),
+    val platforms: List<PlataformaDto> = emptyList(),
+    val states: List<EstadoDto> = emptyList(),
     val isLoading: Boolean = true,
     val error: String? = null
 )
@@ -23,17 +32,34 @@ class ProductViewModel(private val repository: ProductRepository) : ViewModel() 
     val uiState: StateFlow<ProductUiState> = _uiState
 
     init {
-        loadProducts()
+        loadAllInitialData()
     }
 
-    private fun loadProducts() {
+    private fun loadAllInitialData() {
         viewModelScope.launch {
-            repository.getAllProducts()
-                .onStart { _uiState.value = _uiState.value.copy(isLoading = true) }
-                .catch { e -> _uiState.value = _uiState.value.copy(isLoading = false, error = e.message) }
-                .collect { products ->
-                    _uiState.value = _uiState.value.copy(isLoading = false, products = products)
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            try {
+                // Carga de productos
+                repository.getAllProducts().collect { products ->
+                    _uiState.update { it.copy(products = products) }
                 }
+                // Carga de categorías
+                repository.getAllCategorias().collect { categories ->
+                    _uiState.update { it.copy(categories = categories) }
+                }
+                // Carga de plataformas
+                repository.getAllPlataformas().collect { platforms ->
+                    _uiState.update { it.copy(platforms = platforms) }
+                }
+                // Carga de estados
+                repository.getAllEstados().collect { states ->
+                    _uiState.update { it.copy(states = states) }
+                }
+            } catch (e: IOException) {
+                _uiState.update { it.copy(error = e.message) }
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 
@@ -67,33 +93,41 @@ class ProductViewModel(private val repository: ProductRepository) : ViewModel() 
         price: Double,
         stock: Int,
         sku: String,
-        category: String
+        categoryId: Int,
+        platformId: Int
     ) {
         viewModelScope.launch {
-            // 2. Si el ID no es nulo, estamos editando un producto existente.
             val productToSave = if (id != null) {
-                // Creamos una copia del producto existente con los nuevos datos
-                uiState.value.products.find { it.id == id }?.copy(
+                // Modo Edición (aún no implementado del todo, pero lo preparamos)
+                // Aquí necesitaríamos encontrar el nombre de la categoría, etc. para la entidad.
+                // Por ahora, lo simplificamos.
+                _uiState.value.products.find { it.id == id }?.copy(
                     name = name,
                     description = description,
                     price = price,
                     stock = stock,
                     sku = sku,
-                    category = category
-                ) ?: return@launch // Si no se encuentra el producto, no hacemos nada
+                    // Buscamos el nombre de la categoría en nuestra lista de estado
+                    category = _uiState.value.categories.find { it.id_cat == categoryId }?.nombre ?: ""
+                ) ?: return@launch
             } else {
-                // Si el ID es nulo, creamos un producto nuevo
+                // Modo Creación
                 ProductEntity(
                     name = name,
                     description = description,
                     price = price,
                     stock = stock,
                     sku = sku,
-                    category = category,
-                    imageUrl = R.drawable.logo // Imagen por defecto para nuevos productos
+                    // Buscamos el nombre de la categoría para guardarlo en la entidad
+                    category = _uiState.value.categories.find { it.id_cat == categoryId }?.nombre ?: "",
+                    imageUrl = R.drawable.logo // Imagen por defecto
                 )
             }
-            repository.insertProduct(productToSave)
+            // Pasamos los IDs al repositorio
+            repository.insertProduct(productToSave, categoryId, platformId)
+
+            // Recargamos la lista de productos después de guardar
+            loadAllInitialData()
         }
     }
 

@@ -13,6 +13,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.resetandreplay.data.local.database.AppDatabase
 import com.example.resetandreplay.data.repository.ProductRepository
 import com.example.resetandreplay.data.repository.PurchaseRepository
+import com.example.resetandreplay.data.repository.ReviewRepository
 import com.example.resetandreplay.data.repository.UserRepository
 import com.example.resetandreplay.navigation.AppNavGraph
 import com.example.resetandreplay.ui.util.NotificationHelper
@@ -39,12 +40,16 @@ fun AppRoot() {
 
     // Inyección de dependencias
     val userRepository = UserRepository(db.userDao())
-    val productRepository = ProductRepository(db.productDao())
-    val purchaseRepository = PurchaseRepository(db.purchaseDao()) // 1. Creamos el nuevo repo
+    // El nuevo ProductRepository ya no necesita el Dao
+    val productRepository = ProductRepository()
+    val purchaseRepository = PurchaseRepository()
+    val reviewRepository = ReviewRepository()
 
     val authViewModel: AuthViewModel = viewModel(factory = AuthViewModelFactory(userRepository))
+    // La factory funciona igual, solo que el repo que le pasamos es diferente
     val productViewModel: ProductViewModel = viewModel(factory = ProductViewModelFactory(productRepository))
-    val purchaseViewModel: PurchaseViewModel = viewModel(factory = PurchaseViewModelFactory(purchaseRepository)) // 2. Creamos el nuevo ViewModel
+    val purchaseViewModel: PurchaseViewModel = viewModel(factory = PurchaseViewModelFactory(purchaseRepository))
+    val reviewViewModel: ReviewViewModel = viewModel(factory = ReviewViewModelFactory(reviewRepository))
 
     val navController = rememberNavController()
     MaterialTheme {
@@ -54,7 +59,8 @@ fun AppRoot() {
                 navController = navController,
                 authViewModel = authViewModel,
                 productViewModel = productViewModel,
-                purchaseViewModel = purchaseViewModel
+                purchaseViewModel = purchaseViewModel,
+                reviewViewModel = reviewViewModel
             )
         }
     }

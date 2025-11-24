@@ -18,13 +18,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.resetandreplay.data.local.purchase.PurchaseEntity
 import com.example.resetandreplay.data.local.storage.UserPreferences
+import com.example.resetandreplay.data.remote.dto.CompraDto // <-- Importante
 import com.example.resetandreplay.ui.util.formatPrice
 import com.example.resetandreplay.ui.viewmodel.AuthViewModel
 import com.example.resetandreplay.ui.viewmodel.PurchaseViewModel
-import java.text.SimpleDateFormat
-import java.util.*
 
 @Composable
 fun PurchaseHistoryScreen(
@@ -36,7 +34,6 @@ fun PurchaseHistoryScreen(
     val userPrefs = remember { UserPreferences(context) }
     val userEmail by userPrefs.userEmail.collectAsStateWithLifecycle(initialValue = null)
 
-    // 1. Corregido: Se usa el email de DataStore para obtener el usuario y luego su historial.
     LaunchedEffect(userEmail) {
         userEmail?.let { email ->
             val userResult = authViewModel.getUserDetails(email)
@@ -59,14 +56,19 @@ fun PurchaseHistoryScreen(
                     CircularProgressIndicator()
                 }
             }
-            uiState.purchases.isEmpty() -> {
+            uiState.error != null -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = "Error: ${uiState.error}")
+                }
+            }
+            uiState.purchaseHistory.isEmpty() -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Aún no has realizado ninguna compra.")
                 }
             }
             else -> {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    items(uiState.purchases) { purchase ->
+                    items(uiState.purchaseHistory) { purchase ->
                         PurchaseCard(purchase = purchase)
                     }
                 }
@@ -76,16 +78,21 @@ fun PurchaseHistoryScreen(
 }
 
 @Composable
-private fun PurchaseCard(purchase: PurchaseEntity) {
+private fun PurchaseCard(purchase: CompraDto) { // <-- Ahora recibe CompraDto
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            val date = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(purchase.date))
-            Text(text = "Fecha: $date", style = MaterialTheme.typography.bodySmall)
+            // Formateamos la fecha que viene como String del microservicio
+            Text(text = "Fecha: ${purchase.fecha.take(16).replace("T", " ")}", style = MaterialTheme.typography.bodySmall)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = purchase.itemsDescription, style = MaterialTheme.typography.bodyLarge)
+
+            // Mostramos los detalles de la compra
+            purchase.detalles.forEach { detalle ->
+                Text(text = "• ${detalle.cantidad} x Producto ID: ${detalle.id_producto} (${formatPrice(detalle.precio)})", style = MaterialTheme.typography.bodyLarge)
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Total: ${formatPrice(purchase.totalPrice)}",
+                text = "Total: ${formatPrice(purchase.total)}",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.End)
