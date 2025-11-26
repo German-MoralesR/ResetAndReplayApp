@@ -2,16 +2,17 @@ package com.example.resetandreplay.data.repository
 
 import com.example.resetandreplay.data.local.user.UserDao
 import com.example.resetandreplay.data.local.user.UserEntity
+import com.example.resetandreplay.data.remote.ApiService
 import com.example.resetandreplay.data.remote.RetrofitClient
 import com.example.resetandreplay.data.remote.dto.LoginRequest
 import com.example.resetandreplay.data.remote.dto.RegisterRequest
 import com.example.resetandreplay.data.remote.dto.ResetPasswordRequest
 
 class UserRepository(
-    private val userDao: UserDao
+    private val userDao: UserDao,
+    private val apiService: ApiService = RetrofitClient.instance // Parámetro opcional
 ) {
-    // Obtenemos una instancia de nuestro cliente de API
-    private val apiService = RetrofitClient.instance
+
     suspend fun login(email: String, password: String): Result<UserEntity> {
         try {
             // 1. Creamos el objeto que enviaremos en el body

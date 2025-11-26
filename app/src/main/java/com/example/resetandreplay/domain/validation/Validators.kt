@@ -1,11 +1,15 @@
 package com.example.resetandreplay.domain.validation
 
-import android.util.Patterns
 
 // Valida que el email no esté vacío y cumpla patrón de email
+// Valida que el email no esté vacío y cumpla patrón de email
 fun validateEmail(email: String): String? { // Retorna String? (mensaje) o null si está OK
-    if (email.isBlank()) return "El email es obligatorio" // no vacío
-    val ok = Patterns.EMAIL_ADDRESS.matcher(email).matches() // coincide con patrón de email
+    if (email.isBlank()) return "El email es obligatorio"
+
+    // Usamos una expresión regular estándar para validar emails, que no depende de Android.
+    val emailRegex = Regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\$")
+
+    val ok = emailRegex.matches(email) // Comprobamos si el email coincide con el patrón
     return if (!ok) "Formato de email inválido" else null // Si no cumple, devolvemos mensaje
 }
 

@@ -13,11 +13,10 @@ import kotlinx.coroutines.flow.flow
 import java.io.IOException
 
 // ¡El repositorio ya no depende de ProductDao!
-class ProductRepository {
-
-    // Creamos una instancia de nuestro nuevo servicio de API
-    private val apiService: InventoryApiService =
-        InventoryRetrofitClient.create(InventoryApiService::class.java)
+class ProductRepository(
+    // Parámetro opcional: usa la instancia real en la app, permite inyectar un mock en los tests.
+    private val apiService: InventoryApiService = InventoryRetrofitClient.create(InventoryApiService::class.java)
+) {
 
     // Función para obtener todos los productos desde la API
     fun getAllProducts(): Flow<List<ProductEntity>> = flow {
@@ -45,8 +44,9 @@ class ProductRepository {
                 throw IOException("Error en la respuesta del servidor: ${response.code()}")
             }
         } catch (e: Exception) {
-            // En un caso de error, podríamos emitir una lista vacía o relanzar la excepción
-            // Para que el ViewModel la capture.
+            if (e is java.util.concurrent.CancellationException) {
+                throw e
+            }
             throw IOException("No se pudieron cargar los productos: ${e.message}", e)
         }
     }

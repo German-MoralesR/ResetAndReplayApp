@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
 import com.example.resetandreplay.data.local.database.AppDatabase
+import com.example.resetandreplay.data.remote.RetrofitClient
 import com.example.resetandreplay.data.repository.ProductRepository
 import com.example.resetandreplay.data.repository.PurchaseRepository
 import com.example.resetandreplay.data.repository.ReviewRepository
@@ -39,7 +40,10 @@ fun AppRoot() {
     val db = AppDatabase.getInstance(context)
 
     // Inyección de dependencias
-    val userRepository = UserRepository(db.userDao())
+    val userRepository = UserRepository(
+        db.userDao(),
+        apiService = RetrofitClient.instance
+    )
     // El nuevo ProductRepository ya no necesita el Dao
     val productRepository = ProductRepository()
     val purchaseRepository = PurchaseRepository()
