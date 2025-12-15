@@ -5,8 +5,10 @@ package com.example.resetandreplay.data.remote
 import com.example.resetandreplay.data.remote.dto.LoginRequest
 import com.example.resetandreplay.data.remote.dto.RegisterRequest
 import com.example.resetandreplay.data.remote.dto.ResetPasswordRequest
+import com.example.resetandreplay.data.remote.dto.LoginResponseDto
 import retrofit2.http.PUT
 import com.example.resetandreplay.data.remote.dto.UserDto // Crearemos esto pronto
+import com.example.resetandreplay.data.remote.dto.VerifyAnswerDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -20,11 +22,17 @@ interface ApiService {
     @GET("usuarios/email/{email}")
     suspend fun getUserByEmail(@Path("email") email: String): Response<UserDto>
 
+    @GET("usuarios/security-question/{email}")
+    suspend fun getSecurityQuestion(@Path("email") email: String): Response<Map<String, String>>
+
     @POST("usuarios/login")
-    suspend fun login(@Body request: LoginRequest): Response<UserDto>
+    suspend fun login(@Body request: LoginRequest): Response<LoginResponseDto>
 
     @POST("usuarios") // Llama al endpoint POST /usuarios
     suspend fun registerUser(@Body request: RegisterRequest): Response<UserDto> // Recibe un RegisterRequest y espera un UserDto como respuesta
+
+    @POST("usuarios/verify-answer")
+    suspend fun verifySecurityAnswer(@Body request: VerifyAnswerDto): Response<Map<String, String>>
 
     @PUT("usuarios/reset-password")
     suspend fun resetPassword(@Body request: ResetPasswordRequest): Response<Void>

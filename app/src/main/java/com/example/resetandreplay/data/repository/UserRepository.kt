@@ -7,6 +7,7 @@ import com.example.resetandreplay.data.remote.RetrofitClient
 import com.example.resetandreplay.data.remote.dto.LoginRequest
 import com.example.resetandreplay.data.remote.dto.RegisterRequest
 import com.example.resetandreplay.data.remote.dto.ResetPasswordRequest
+import com.example.resetandreplay.data.remote.dto.VerifyAnswerDto
 
 class UserRepository(
     private val userDao: UserDao,
@@ -15,38 +16,47 @@ class UserRepository(
 
     suspend fun login(email: String, password: String): Result<UserEntity> {
         try {
-            // 1. Creamos el objeto que enviaremos en el body
             val loginRequest = LoginRequest(correo = email, password = password)
-
-            // 2. Llamamos al nuevo endpoint POST
             val response = apiService.login(loginRequest)
 
             if (response.isSuccessful) {
-                val userDto = response.body()
-                if (userDto != null) {
-                    // Convertimos el DTO a la Entidad local
+                // ---- ESTA ES LA PARTE MODIFICADA ----
+                val loginResponse = response.body()
+                if (loginResponse != null) {
+                    // 1. Obtenemos el objeto 'usuario' de la respuesta
+                    val userDto = loginResponse.usuario
+
+                    // 2. Convertimos el DTO a la Entidad local
                     val userEntity = UserEntity(
                         id = userDto.id_usuario.toLong(),
                         name = userDto.nombre,
                         email = userDto.correo,
-                        phone = "",
-                        password = "",
-                        isAdmin = userDto.rol.nombre.equals("ADMIN", ignoreCase = true)
+                        phone = userDto.telefono ?: "",
+                        password = "", // La contraseña no viaja, esto es correcto
+                        // Hacemos una comprobación segura por si el rol es nulo
+                        isAdmin = userDto.rol?.nombre.equals("ADMIN", ignoreCase = true)
                     )
                     return Result.success(userEntity)
                 } else {
                     return Result.failure(Exception("Respuesta vacía del servidor."))
                 }
             } else {
-                // Si el código es 401 (Unauthorized) o cualquier otro error
                 return Result.failure(Exception("Email o contraseña incorrectos."))
             }
         } catch (e: Exception) {
-            return Result.failure(Exception("Error de red: ${e.message}"))
+            // Este es el error que veías. Ahora tendrá más sentido si ocurre.
+            return Result.failure(Exception("Error de red o de procesamiento: ${e.message}"))
         }
     }
 
-    suspend fun register(name: String, email: String, phone: String, password: String): Result<Long> {
+    suspend fun register(
+        name: String,
+        email: String,
+        phone: String,
+        password: String,
+        securityQuestion: String,
+        securityAnswer: String
+    ): Result<Long> {
         try {
             // 1. Creamos el objeto DTO con los datos del formulario de registro
             // El campo 'phone' no está en nuestro DTO, el microservicio no lo pide por ahora.
@@ -54,7 +64,9 @@ class UserRepository(
                 nombre = name,
                 correo = email,
                 telefono = phone,
-                password = password
+                password = password,
+                securityQuestion = securityQuestion,
+                securityAnswer = securityAnswer
             )
 
             // 2. Llamamos al nuevo endpoint de la API
@@ -78,6 +90,68 @@ class UserRepository(
         } catch (e: Exception) {
             // Error de red (sin conexión, servidor caído, etc.)
             return Result.failure(Exception("Error de red: ${e.message}"))
+        }
+    }
+
+    suspend fun getSecurityQuestion(email: String): Result<String> {
+        return try {
+            val response = apiService.getSecurityQuestion(email)
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                val question = body?.get("question")
+                if (question != null) {
+                    Result.success(question)
+                } else {
+                    // Esto ocurre si la API da un 200 OK pero el cuerpo es inesperado
+                    Result.failure(Exception("Respuesta del servidor inválida."))
+                }
+            } else {
+                // ----> ESTA ES LA LÓGICA DE ERROR MEJORADA <----
+                var errorMessage = "Error desconocido del servidor." // Mensaje por defecto
+                val errorBody = response.errorBody()?.string() // Leemos el cuerpo del error UNA SOLA VEZ
+
+                if (!errorBody.isNullOrBlank()) {
+                    try {
+                        // Intentamos parsear el JSON de error que envía el microservicio
+                        val jsonObject = org.json.JSONObject(errorBody)
+                        // Buscamos la clave "error" que definimos en el backend
+                        if (jsonObject.has("error")) {
+                            errorMessage = jsonObject.getString("error")
+                        } else {
+                            errorMessage = "Error ${response.code()}: No se encontró el detalle del error."
+                        }
+                    } catch (e: org.json.JSONException) {
+                        // Si el errorBody no es un JSON válido, usamos el texto plano
+                        errorMessage = errorBody
+                    }
+                } else {
+                    // Si no hay cuerpo de error, usamos un mensaje genérico basado en el código HTTP
+                    errorMessage = when (response.code()) {
+                        404 -> "El usuario no fue encontrado."
+                        else -> "Error del servidor (código: ${response.code()})."
+                    }
+                }
+                Result.failure(Exception(errorMessage))
+            }
+        } catch (e: java.net.ConnectException) {
+            Result.failure(Exception("Error de red: No se pudo conectar al servidor."))
+        } catch (e: Exception) {
+            Result.failure(Exception("Error inesperado: ${e.message}"))
+        }
+    }
+
+    suspend fun verifySecurityAnswer(email: String, answer: String): Result<Boolean> {
+        return try {
+            val request = VerifyAnswerDto(correo = email, answer = answer)
+            val response = apiService.verifySecurityAnswer(request)
+            if (response.isSuccessful) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception("La respuesta es incorrecta."))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Error de red: ${e.message}"))
         }
     }
 

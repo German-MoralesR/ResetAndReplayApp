@@ -1,6 +1,11 @@
 package com.example.resetandreplay.ui.screen
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -9,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -17,6 +23,8 @@ import com.example.resetandreplay.data.remote.dto.CategoriaDto
 import com.example.resetandreplay.data.remote.dto.EstadoDto
 import com.example.resetandreplay.data.remote.dto.PlataformaDto
 import com.example.resetandreplay.ui.viewmodel.ProductViewModel
+import coil.compose.rememberAsyncImagePainter
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductFormScreen(
@@ -48,6 +56,15 @@ fun ProductFormScreen(
     var stateMenuExpanded by remember { mutableStateOf(false) }
     var selectedState by remember { mutableStateOf<EstadoDto?>(null) }
 
+    var imageUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Launcher para seleccionar una imagen de la galería
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        imageUri = uri
+    }
+
     val context = LocalContext.current
 
     // 3. El título cambia si estamos editando o creando
@@ -68,6 +85,26 @@ fun ProductFormScreen(
         OutlinedTextField(value = price, onValueChange = { price = it }, label = { Text("Precio") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = stock, onValueChange = { stock = it }, label = { Text("Stock disponible") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = sku, onValueChange = { sku = it }, label = { Text("SKU") }, modifier = Modifier.fillMaxWidth())
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clickable { imagePickerLauncher.launch("image/*") }, // Lanza el selector de imágenes
+            contentAlignment = Alignment.Center
+        ) {
+            if (imageUri != null) {
+                Image(
+                    painter = rememberAsyncImagePainter(imageUri),
+                    contentDescription = "Imagen seleccionada",
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Text("Haz clic para seleccionar una imagen", style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
         ExposedDropdownMenuBox(
             expanded = categoryMenuExpanded, // Usa el estado que creamos para saber si está abierto o cerrado
             onExpandedChange = { categoryMenuExpanded = !categoryMenuExpanded } // Al hacer clic, cambia el estado
@@ -134,24 +171,55 @@ fun ProductFormScreen(
             }
         }
 
+        ExposedDropdownMenuBox(
+            expanded = stateMenuExpanded,
+            onExpandedChange = { stateMenuExpanded = !stateMenuExpanded }
+        ) {
+            OutlinedTextField(
+                value = selectedState?.nombre ?: "Selecciona un estado",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Estado") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = stateMenuExpanded) },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = stateMenuExpanded,
+                onDismissRequest = { stateMenuExpanded = false }
+            ) {
+                // Recorremos la lista de estados del ViewModel
+                uiState.states.forEach { state ->
+                    DropdownMenuItem(
+                        text = { Text(state.nombre) },
+                        onClick = {
+                            selectedState = state // Guardamos el estado seleccionado
+                            stateMenuExpanded = false // Cerramos el menú
+                        }
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.weight(1f))
+
+
 
         Button(
             onClick = {
-                // 1. Validamos que se hayan seleccionado la categoría y la plataforma
-                if (name.isNotBlank() && price.toDoubleOrNull() != null && stock.toIntOrNull() != null && selectedCategory != null && selectedPlatform != null) {
-
-                    // 2. Llamamos a saveProduct, pero ahora necesitamos una versión que acepte los IDs
+                if (name.isNotBlank() && /* ... otras validaciones ... */ selectedState != null) {
                     productViewModel.saveProduct(
                         id = productId,
                         name = name,
                         description = description,
-                        price = price.toDouble(),
-                        stock = stock.toInt(),
+                        price = price.toDoubleOrNull() ?: 0.0,
+                        stock = stock.toIntOrNull() ?: 0,
                         sku = sku,
-                        // ¡Importante! Pasamos los IDs de los objetos que seleccionamos
-                        categoryId = selectedCategory!!.id_cat, // Usamos !! porque ya verificamos que no es nulo
-                        platformId = selectedPlatform!!.id_plat
+                        categoryId = selectedCategory!!.id_cat,
+                        platformId = selectedPlatform!!.id_plat,
+                        estadoId = selectedState!!.id_estado,
+                        imageUri = imageUri // <-- ¡PASAMOS LA URI DE LA IMAGEN!
                     )
                     onProductSaved()
                 } else {

@@ -16,6 +16,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +32,8 @@ import com.example.resetandreplay.ui.viewmodel.PurchaseViewModel
 import kotlinx.coroutines.launch
 import com.example.resetandreplay.data.remote.dto.CompraRequest
 import com.example.resetandreplay.data.remote.dto.DetalleRequest
+import coil.compose.AsyncImage
+import com.example.resetandreplay.R
 
 @Composable
 fun CartScreen(
@@ -157,7 +161,16 @@ fun CartScreen(
 private fun CartItemRow(item: CartItem, onRemove: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Image(painter = painterResource(id = item.product.imageUrl), contentDescription = item.product.name, modifier = Modifier.size(60.dp))
+            AsyncImage(
+                model = item.product.imageUrl, // Ahora pasamos el String con la URL
+                contentDescription = item.product.name,
+                placeholder = painterResource(id = R.drawable.logo), // Imagen mientras carga
+                error = painterResource(id = R.drawable.logo),       // Imagen si hay error
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(MaterialTheme.shapes.small), // Un clip para que se vea mejor
+                contentScale = ContentScale.Crop // Asegura que la imagen llene el espacio
+            )
             Spacer(modifier = Modifier.padding(horizontal = 8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = item.product.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import android.net.Uri
+import com.example.resetandreplay.data.remote.dto.ProductDto
 
 data class ProductUiState(
     val products: List<ProductEntity> = emptyList(),
@@ -87,47 +89,43 @@ class ProductViewModel(private val repository: ProductRepository) : ViewModel() 
 
     // 1. Modificamos la función para que acepte un ID opcional
     fun saveProduct(
-        id: Long? = null,
+        id: Long?,
         name: String,
         description: String,
         price: Double,
         stock: Int,
         sku: String,
         categoryId: Int,
-        platformId: Int
+        platformId: Int,
+        estadoId: Int,
+        imageUri: Uri? // <-- AÑADIR URI DE IMAGEN
     ) {
         viewModelScope.launch {
-            val productToSave = if (id != null) {
-                // Modo Edición (aún no implementado del todo, pero lo preparamos)
-                // Aquí necesitaríamos encontrar el nombre de la categoría, etc. para la entidad.
-                // Por ahora, lo simplificamos.
-                _uiState.value.products.find { it.id == id }?.copy(
-                    name = name,
-                    description = description,
-                    price = price,
-                    stock = stock,
-                    sku = sku,
-                    // Buscamos el nombre de la categoría en nuestra lista de estado
-                    category = _uiState.value.categories.find { it.id_cat == categoryId }?.nombre ?: ""
-                ) ?: return@launch
-            } else {
-                // Modo Creación
-                ProductEntity(
-                    name = name,
-                    description = description,
-                    price = price,
-                    stock = stock,
-                    sku = sku,
-                    // Buscamos el nombre de la categoría para guardarlo en la entidad
-                    category = _uiState.value.categories.find { it.id_cat == categoryId }?.nombre ?: "",
-                    imageUrl = R.drawable.logo // Imagen por defecto
-                )
-            }
-            // Pasamos los IDs al repositorio
-            repository.insertProduct(productToSave, categoryId, platformId)
+            _uiState.update { it.copy(isLoading = true, error = null) }
 
-            // Recargamos la lista de productos después de guardar
-            loadAllInitialData()
+            // Creamos el DTO que espera el repositorio
+            val productDto = ProductDto(
+                id_producto = id?.toInt() ?: 0,
+                nombre = name,
+                descripcion = description,
+                precio = price,
+                stock = stock,
+                sku = sku,
+                categoria = CategoriaDto(id_cat = categoryId, nombre = ""),
+                plataforma = PlataformaDto(id_plat = platformId, nombre = ""),
+                estado = EstadoDto(id_estado = estadoId, nombre = ""),
+                fotos = emptyList(), // El backend maneja las fotos por separado
+                photoUrl = null
+            )
+
+            val result = repository.saveProduct(productDto, imageUri)
+
+            if (result.isSuccess) {
+                // Éxito, recargamos todo para ver los cambios
+                loadAllInitialData()
+            } else {
+                _uiState.update { it.copy(isLoading = false, error = result.exceptionOrNull()?.message ?: "Error desconocido") }
+            }
         }
     }
 

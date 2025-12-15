@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import com.example.resetandreplay.data.local.product.ProductEntity
 import com.example.resetandreplay.ui.util.formatPrice
 import com.example.resetandreplay.ui.viewmodel.ProductViewModel
+import coil.compose.AsyncImage
+import com.example.resetandreplay.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -170,7 +172,16 @@ private fun ProductCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Image(painter = painterResource(id = product.imageUrl), contentDescription = "Imagen de ${product.name}", modifier = Modifier.size(80.dp).clip(MaterialTheme.shapes.small), contentScale = ContentScale.Crop)
+            AsyncImage(
+                model = product.imageUrl,
+                contentDescription = "Imagen de ${product.name}",
+                placeholder = painterResource(id = R.drawable.logo), // Imagen mientras carga
+                error = painterResource(id = R.drawable.logo),       // Imagen si hay error
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(MaterialTheme.shapes.small),
+                contentScale = ContentScale.Crop
+            )
             Spacer(modifier = Modifier.padding(horizontal = 8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = product.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)

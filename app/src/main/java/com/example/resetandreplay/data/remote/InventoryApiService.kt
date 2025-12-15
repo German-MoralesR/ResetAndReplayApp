@@ -10,6 +10,11 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
+import okhttp3.MultipartBody // <-- ¡AÑADIR IMPORT!
+import okhttp3.RequestBody // <-- ¡AÑADIR IMPORT!
+import retrofit2.http.Multipart // <-- ¡AÑADIR IMPORT!
+import retrofit2.http.PUT // <-- ¡AÑADIR IMPORT!
+import retrofit2.http.Part
 
 interface InventoryApiService {
 
@@ -28,9 +33,22 @@ interface InventoryApiService {
     @GET("estados")
     suspend fun getAllEstados(): Response<List<EstadoDto>>
 
+    @Multipart // Indicamos que es una petición multipart
     @POST("productos")
-    suspend fun createProduct(@Body product: ProductDto): Response<ProductDto>
+    suspend fun createProduct(
+        @Part("producto") product: RequestBody, // El DTO irá como JSON en esta parte
+        @Part file: MultipartBody.Part?       // El archivo de imagen irá en esta parte (opcional)
+    ): Response<ProductDto>
+
+    // --- MÉTODO DE ACTUALIZACIÓN CORREGIDO ---
+    @Multipart
+    @PUT("productos/{id}")
+    suspend fun updateProduct(
+        @Path("id") id: Int,
+        @Part("producto") product: RequestBody,
+        @Part file: MultipartBody.Part?
+    ): Response<ProductDto>
 
     @DELETE("productos/{id}")
-    suspend fun deleteProductById(@Path("id") id: Int): Response<Void> // Response<Void> porque no devuelve cuerpo
+    suspend fun deleteProductById(@Path("id") id: Int): Response<Void>
 }

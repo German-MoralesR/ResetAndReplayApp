@@ -2,12 +2,16 @@ package com.example.resetandreplay.ui.screen
 
 import androidx.compose.foundation.background                 // Fondo
 import androidx.compose.foundation.layout.*                   // Box/Column/Row/Spacer
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons                  // Íconos Material
 import androidx.compose.material.icons.filled.Visibility      // Ícono mostrar
 import androidx.compose.material.icons.filled.VisibilityOff   // Ícono ocultar
 import androidx.compose.material3.*                           // Material 3
 import androidx.compose.runtime.*                             // remember, Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment                          // Alineaciones
 import androidx.compose.ui.Modifier                           // Modificador
 import androidx.compose.ui.text.input.*                       // KeyboardOptions/Types/Transformations
@@ -35,6 +39,10 @@ fun RegisterScreenVm(
         phone = state.phone, // 3) Teléfono
         pass = state.pass, // 4) Password
         confirm = state.confirm, // 5) Confirmación
+        securityQuestion = state.securityQuestion,
+        securityAnswer = state.securityAnswer,
+        securityQuestionError = state.securityQuestionError,
+        securityAnswerError = state.securityAnswerError,
 
         nameError = state.nameError, // Errores por campo
         emailError = state.emailError,
@@ -51,6 +59,8 @@ fun RegisterScreenVm(
         onPhoneChange = vm::onPhoneChange,
         onPassChange = vm::onRegisterPassChange,
         onConfirmChange = vm::onConfirmChange,
+        onSecurityQuestionChange = vm::onSecurityQuestionChange,
+        onSecurityAnswerChange = vm::onSecurityAnswerChange,
 
         onSubmit = vm::submitRegister, // Acción Registrar
         onGoLogin = onGoLogin // Ir a Login
@@ -59,6 +69,7 @@ fun RegisterScreenVm(
 
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RegisterScreen(
     name: String, // 1) Nombre (solo letras/espacios)
@@ -71,6 +82,10 @@ private fun RegisterScreen(
     phoneError: String?,
     passError: String?,
     confirmError: String?,
+    securityQuestion: String,
+    securityAnswer: String,
+    securityQuestionError: String?,
+    securityAnswerError: String?,
     canSubmit: Boolean, // Habilitar botón
     isSubmitting: Boolean, // Flag de carga
     errorMsg: String?, // Error global (duplicado)
@@ -79,6 +94,8 @@ private fun RegisterScreen(
     onPhoneChange: (String) -> Unit, // Handler teléfono
     onPassChange: (String) -> Unit, // Handler password
     onConfirmChange: (String) -> Unit, // Handler confirmación
+    onSecurityQuestionChange: (String) -> Unit,
+    onSecurityAnswerChange: (String) -> Unit,
     onSubmit: () -> Unit, // Acción Registrar
     onGoLogin: () -> Unit // Ir a Login
 ) {
@@ -87,6 +104,16 @@ private fun RegisterScreen(
     var showPass by remember { mutableStateOf(false) } // Mostrar/ocultar password
     var showConfirm by remember { mutableStateOf(false) } // Mostrar/ocultar confirm
 
+    // LISTA DE PREGUNTAS DE SEGURIDAD
+    val securityQuestions = listOf(
+        "¿Cuál es el nombre de tu primera mascota?",
+        "¿Cuál es tu comida favorita?",
+        "¿En qué ciudad naciste?",
+        "¿Cuál era el nombre de tu escuela primaria?"
+    )
+    var questionMenuExpanded by remember { mutableStateOf(false) }
+
+
     Box(
         modifier = Modifier
             .fillMaxSize() // Ocupa todo
@@ -94,7 +121,9 @@ private fun RegisterScreen(
         contentAlignment = Alignment.Center // Centro
     ) {
         // 5 modificamos el parametro de la columna
-        Column(modifier = Modifier.fillMaxWidth()) { // Estructura vertical
+        Column(modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())) { // Estructura vertical
             Text(
                 text = "Registro",
                 style = MaterialTheme.typography.headlineSmall // Título
@@ -199,6 +228,56 @@ private fun RegisterScreen(
             )
             if (confirmError != null) { // Muestra error
                 Text(confirmError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Dropdown para Pregunta de Seguridad
+            ExposedDropdownMenuBox(
+                expanded = questionMenuExpanded,
+                onExpandedChange = { questionMenuExpanded = !questionMenuExpanded }
+            ) {
+                OutlinedTextField(
+                    value = securityQuestion,
+                    onValueChange = {}, // No se cambia directamente
+                    readOnly = true,
+                    label = { Text("Pregunta de seguridad") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = questionMenuExpanded) },
+                    isError = securityQuestionError != null,
+                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = questionMenuExpanded,
+                    onDismissRequest = { questionMenuExpanded = false }
+                ) {
+                    securityQuestions.forEach { question ->
+                        DropdownMenuItem(
+                            text = { Text(question) },
+                            onClick = {
+                                onSecurityQuestionChange(question) // Llama al ViewModel
+                                questionMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            if (securityQuestionError != null) {
+                Text(securityQuestionError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Campo para Respuesta de Seguridad
+            OutlinedTextField(
+                value = securityAnswer,
+                onValueChange = onSecurityAnswerChange,
+                label = { Text("Tu respuesta secreta") },
+                singleLine = true,
+                isError = securityAnswerError != null,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (securityAnswerError != null) {
+                Text(securityAnswerError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
             }
 
             Spacer(Modifier.height(16.dp)) // Espacio

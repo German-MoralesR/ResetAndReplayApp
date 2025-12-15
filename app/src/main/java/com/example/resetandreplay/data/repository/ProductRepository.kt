@@ -1,5 +1,7 @@
 package com.example.resetandreplay.data.repository
 
+import android.content.Context
+import android.net.Uri
 import com.example.resetandreplay.R // Para la imagen por defecto
 import com.example.resetandreplay.data.local.product.ProductEntity // Seguiremos usando la entidad local por ahora
 import com.example.resetandreplay.data.remote.InventoryApiService
@@ -11,12 +13,18 @@ import com.example.resetandreplay.data.remote.dto.ProductDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import java.io.IOException
+import com.google.gson.Gson
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 // ¡El repositorio ya no depende de ProductDao!
 class ProductRepository(
     // Parámetro opcional: usa la instancia real en la app, permite inyectar un mock en los tests.
+    private val context: Context,
     private val apiService: InventoryApiService = InventoryRetrofitClient.create(InventoryApiService::class.java)
 ) {
+    private val inventoryBaseUrl = "http://10.0.2.2:8082"
 
     // Función para obtener todos los productos desde la API
     fun getAllProducts(): Flow<List<ProductEntity>> = flow {
@@ -24,16 +32,15 @@ class ProductRepository(
             val response = apiService.getAllProducts()
             if (response.isSuccessful) {
                 val productDtos = response.body() ?: emptyList()
-                // Convertimos la lista de DTOs a una lista de Entidades locales
                 val productEntities = productDtos.map { dto ->
                     ProductEntity(
                         id = dto.id_producto.toLong(),
                         name = dto.nombre,
                         description = dto.descripcion,
                         price = dto.precio,
-                        // OJO: La imagen ya no viene de R.drawable. Usaremos un placeholder.
-                        // La primera foto de la lista podría ser la principal.
-                        imageUrl = R.drawable.logo, // Placeholder
+                        // --- ¡CORRECCIÓN AQUÍ! ---
+                        // Construimos la URL completa si photoUrl no es nulo
+                        imageUrl = dto.photoUrl?.let { inventoryBaseUrl + it } ?: "",
                         stock = dto.stock,
                         sku = dto.sku,
                         category = dto.categoria.nombre
@@ -63,7 +70,8 @@ class ProductRepository(
                         name = dto.nombre,
                         description = dto.descripcion,
                         price = dto.precio,
-                        imageUrl = R.drawable.logo, // Placeholder
+                        // --- ¡CORRECCIÓN AQUÍ! ---
+                        imageUrl = dto.photoUrl?.let { inventoryBaseUrl + it } ?: "",
                         stock = dto.stock,
                         sku = dto.sku,
                         category = dto.categoria.nombre
@@ -80,32 +88,44 @@ class ProductRepository(
         }
     }
 
-    // Función para insertar/crear un nuevo producto
-    suspend fun insertProduct(product: ProductEntity, categoryId: Int, platformId: Int) {
-        try {
-            // 1. Convertimos la ProductEntity de la UI a un ProductDto para la API
-            val productDto = ProductDto(
-                id_producto = product.id.toInt(), // En la creación, la API lo ignora y genera uno nuevo
-                nombre = product.name,
-                descripcion = product.description,
-                precio = product.price,
-                stock = product.stock,
-                sku = product.sku,
-                // Creamos DTOs "vacíos" para las relaciones, solo con el ID que es lo que JPA necesita para enlazar.
-                // Aquí asumimos IDs fijos. En un futuro, el formulario de la app debería dejar seleccionar la categoría/plataforma/estado.
-                categoria = CategoriaDto(id_cat = categoryId, nombre = ""), // El nombre no importa aquí
-                plataforma = PlataformaDto(id_plat = platformId, nombre = ""),
-                estado = EstadoDto(id_estado = 1, nombre = "Nuevo"), // Placeholder
-                fotos = emptyList() // La API podría manejar la subida de fotos por separado
-            )
+    // --- FUNCIÓN DE INSERTAR/ACTUALIZAR ---
+    suspend fun saveProduct(
+        productDto: ProductDto, // Recibimos el DTO completo
+        imageUri: Uri?          // Y la URI de la imagen (opcional)
+    ): Result<ProductDto> {
+        return try {
+            // 1. Convertir el DTO del producto a un RequestBody de tipo JSON
+            val productJson = Gson().toJson(productDto)
+            val productRequestBody = productJson.toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
 
-            // 2. Llamamos al endpoint de la API
-            val response = apiService.createProduct(productDto)
-            if (!response.isSuccessful) {
-                throw IOException("Error al crear el producto: ${response.code()}")
+            // 2. Convertir la URI de la imagen a un MultipartBody.Part (si existe)
+            val imagePart: MultipartBody.Part? = imageUri?.let { uri ->
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    val fileBytes = inputStream.readBytes()
+                    val requestFile = fileBytes.toRequestBody(
+                        context.contentResolver.getType(uri)?.toMediaTypeOrNull() // "image/jpeg", "image/png", etc.
+                    )
+                    // El nombre "file" debe coincidir con el @RequestPart del backend
+                    MultipartBody.Part.createFormData("file", "image.jpg", requestFile)
+                }
+            }
+
+            // 3. Decidir si llamar a 'create' o 'update' basado en el ID
+            val response = if (productDto.id_producto == 0) {
+                // ID es 0 o no existe -> Crear nuevo producto
+                apiService.createProduct(productRequestBody, imagePart)
+            } else {
+                // ID existe -> Actualizar producto existente
+                apiService.updateProduct(productDto.id_producto, productRequestBody, imagePart)
+            }
+
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(IOException("Error al guardar el producto: ${response.code()} - ${response.message()}"))
             }
         } catch (e: Exception) {
-            throw IOException("No se pudo crear el producto: ${e.message}", e)
+            Result.failure(e)
         }
     }
 

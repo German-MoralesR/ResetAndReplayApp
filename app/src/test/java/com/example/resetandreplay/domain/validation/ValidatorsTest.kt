@@ -16,7 +16,7 @@ class ValidatorsTest {
     }
 
     @Test
-    fun `validateEmail con email vacío devuelve mensaje de error`() {
+    fun validateEmailEmptyOrNull() {
         val error = validateEmail(email = "")
         assertEquals("El email es obligatorio", error)
     }

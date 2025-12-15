@@ -36,13 +36,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.example.resetandreplay.data.local.cart.Cart
 import com.example.resetandreplay.data.local.product.ProductEntity
 import com.example.resetandreplay.data.remote.dto.ResenaDto
 import com.example.resetandreplay.ui.util.formatPrice
 import com.example.resetandreplay.ui.viewmodel.ProductViewModel
 import com.example.resetandreplay.ui.viewmodel.ReviewViewModel
+import coil.compose.AsyncImage
+import com.example.resetandreplay.R
 
 @Composable
 fun ProductDetailScreen(
@@ -138,9 +139,11 @@ private fun ProductDetail(product: ProductEntity) {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Image(
-            painter = painterResource(id = product.imageUrl),
+        AsyncImage(
+            model = product.imageUrl,
             contentDescription = "Imagen de ${product.name}",
+            placeholder = painterResource(id = R.drawable.logo),
+            error = painterResource(id = R.drawable.logo),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(250.dp),

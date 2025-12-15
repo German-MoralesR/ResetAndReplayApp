@@ -62,10 +62,13 @@ fun AppNavGraph(
     val goToProfile: () -> Unit = { if (isLoggedIn) navController.navigate(Route.Profile.path) else goLogin() }
     val onLoggedOut: () -> Unit = { goHome() }
     val goToForgotPassword: () -> Unit = { navController.navigate(Route.ForgotPassword.path) }
+    val goToSecurityQuestion: (String) -> Unit = { email ->
+        navController.navigate(Route.SecurityQuestion.createRoute(email))
+    }
     val goToResetPassword: (String) -> Unit = { navController.navigate(Route.ResetPassword.createRoute(it)) }
     val goToPurchaseHistory: () -> Unit = { navController.navigate(Route.PurchaseHistory.path) } // 1. Acción para el historial
-    val goToAddReview: (Long) -> Unit = { productId -> navController.navigate(Route.ReviewForm.createRoute(productId))
-    }
+    val goToAddReview: (Long) -> Unit = { productId -> navController.navigate(Route.ReviewForm.createRoute(productId)) }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -159,7 +162,29 @@ fun AppNavGraph(
                         onProductSaved = { navController.popBackStack() }
                     )
                 }
-                composable(Route.ForgotPassword.path) { ForgotPasswordScreen(authViewModel = authViewModel, onUserFound = { email -> goToResetPassword(email) }) }
+                composable(Route.ForgotPassword.path) {
+                    ForgotPasswordScreen(
+                        authViewModel = authViewModel,
+                        // Ahora, en lugar de ir directo a ResetPassword, va a la pregunta de seguridad
+                        onUserFound = { email -> goToSecurityQuestion(email) }
+                    )
+                }
+
+                // ¡NUEVO COMPOSABLE para la pantalla de pregunta!
+                composable(
+                    route = Route.SecurityQuestion.path,
+                    arguments = listOf(navArgument("email") { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val email = backStackEntry.arguments?.getString("email") ?: ""
+                    SecurityQuestionScreen(
+                        authViewModel = authViewModel,
+                        email = email,
+                        onAnswerCorrect = { verifiedEmail ->
+                            // Si la respuesta es correcta, navegamos a ResetPassword
+                            goToResetPassword(verifiedEmail)
+                        }
+                    )
+                }
                 composable(Route.ResetPassword.path, arguments = listOf(navArgument("email") { type = NavType.StringType })) { backStackEntry ->
                     val email = backStackEntry.arguments?.getString("email") ?: ""
                     ResetPasswordScreen(

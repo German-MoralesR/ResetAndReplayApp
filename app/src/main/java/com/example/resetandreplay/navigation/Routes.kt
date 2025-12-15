@@ -12,10 +12,6 @@ sealed class Route(val path: String) {
     // 1. Nueva ruta para el historial de compras
     data object PurchaseHistory : Route("purchase-history")
 
-    data object ResetPassword : Route("reset-password/{email}") {
-        fun createRoute(email: String) = "reset-password/$email"
-    }
-
     data object ProductForm : Route("product-form/{productId}") {
         fun createRoute(productId: Long?) = "product-form/${productId ?: -1L}"
     }
@@ -26,5 +22,13 @@ sealed class Route(val path: String) {
 
     data object ReviewForm : Route("review-form/{productId}") { // <-- NUEVA RUTA
         fun createRoute(productId: Long) = "review-form/$productId"
+    }
+
+    data object SecurityQuestion : Route("security-question/{email}") {
+        fun createRoute(email: String) = "security-question/$email"
+    }
+
+    data object ResetPassword : Route("reset-password/{email}") { // <-- Esta ya existía
+        fun createRoute(email: String) = "reset-password/$email"
     }
 }

@@ -11,7 +11,8 @@ data class ProductDto(
     val categoria: CategoriaDto,
     val plataforma: PlataformaDto,
     val estado: EstadoDto,
-    val fotos: List<FotoDto>
+    val fotos: List<FotoDto>,
+    val photoUrl: String?
 )
 
 data class CategoriaDto(

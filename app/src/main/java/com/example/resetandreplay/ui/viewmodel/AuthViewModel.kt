@@ -30,11 +30,15 @@ data class RegisterUiState(
     val phone: String = "",
     val pass: String = "",
     val confirm: String = "",
+    val securityQuestion: String = "",
+    val securityAnswer: String = "",
     val nameError: String? = null,
     val emailError: String? = null,
     val phoneError: String? = null,
     val passError: String? = null,
     val confirmError: String? = null,
+    val securityQuestionError: String? = null,
+    val securityAnswerError: String? = null,
     val isSubmitting: Boolean = false,
     val canSubmit: Boolean = false,
     val success: Boolean = false,
@@ -120,10 +124,31 @@ class AuthViewModel(
         recomputeRegisterCanSubmit()
     }
 
+    fun onSecurityQuestionChange(value: String) {
+        _register.update { it.copy(
+            securityQuestion = value,
+            securityQuestionError = if(value.isBlank()) "La pregunta no puede estar vacía" else null
+        )}
+        recomputeRegisterCanSubmit()
+    }
+
+    fun onSecurityAnswerChange(value: String) {
+        _register.update { it.copy(
+            securityAnswer = value,
+            securityAnswerError = if(value.isBlank()) "La respuesta no puede estar vacía" else null
+        )}
+        recomputeRegisterCanSubmit()
+    }
+
     private fun recomputeRegisterCanSubmit() {
         val s = _register.value
-        val noErrors = listOf(s.nameError, s.emailError, s.phoneError, s.passError, s.confirmError).all { it == null }
-        val filled = s.name.isNotBlank() && s.email.isNotBlank() && s.phone.isNotBlank() && s.pass.isNotBlank() && s.confirm.isNotBlank()
+        val noErrors = listOf(
+            s.nameError, s.emailError, s.phoneError, s.passError, s.confirmError,
+            s.securityQuestionError, s.securityAnswerError // <-- AÑADIR A LA VALIDACIÓN
+        ).all { it == null }
+        val filled = s.name.isNotBlank() && s.email.isNotBlank() && s.phone.isNotBlank() &&
+                s.pass.isNotBlank() && s.confirm.isNotBlank() &&
+                s.securityQuestion.isNotBlank() && s.securityAnswer.isNotBlank() // <-- AÑADIR
         _register.update { it.copy(canSubmit = noErrors && filled) }
     }
 
@@ -132,12 +157,13 @@ class AuthViewModel(
         if (!s.canSubmit || s.isSubmitting) return
         viewModelScope.launch {
             _register.update { it.copy(isSubmitting = true, errorMsg = null, success = false) }
-            delay(700)
             val result = repository.register(
                 name = s.name.trim(),
                 email = s.email.trim(),
                 phone = s.phone.trim(),
-                password = s.pass
+                password = s.pass,
+                securityQuestion = s.securityQuestion, // <-- ENVIAR
+                securityAnswer = s.securityAnswer      // <-- ENVIAR
             )
             _register.update {
                 if (result.isSuccess) {
@@ -146,6 +172,20 @@ class AuthViewModel(
                     it.copy(isSubmitting = false, success = false, errorMsg = result.exceptionOrNull()?.message ?: "No se pudo registrar")
                 }
             }
+        }
+    }
+
+    fun getSecurityQuestion(email: String, onResult: (Result<String>) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.getSecurityQuestion(email)
+            onResult(result)
+        }
+    }
+
+    fun verifySecurityAnswer(email: String, answer: String, onResult: (Result<Boolean>) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.verifySecurityAnswer(email, answer)
+            onResult(result)
         }
     }
 
@@ -166,13 +206,6 @@ class AuthViewModel(
     fun logout(prefs: UserPreferences) {
         viewModelScope.launch {
             prefs.clear()
-        }
-    }
-
-    fun checkIfUserExists(email: String, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val result = repository.getUserByEmail(email)
-            onResult(result.isSuccess)
         }
     }
 

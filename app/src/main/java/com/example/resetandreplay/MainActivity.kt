@@ -39,13 +39,14 @@ fun AppRoot() {
     val context = LocalContext.current.applicationContext
     val db = AppDatabase.getInstance(context)
 
+
     // Inyección de dependencias
     val userRepository = UserRepository(
         db.userDao(),
         apiService = RetrofitClient.instance
     )
     // El nuevo ProductRepository ya no necesita el Dao
-    val productRepository = ProductRepository()
+    val productRepository = ProductRepository(context)
     val purchaseRepository = PurchaseRepository()
     val reviewRepository = ReviewRepository()
 
